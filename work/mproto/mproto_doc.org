@@ -1,6 +1,7 @@
 #+OPTIONS: ^:nil
 #+OPTIONS: \n:t
 #+ATTR_HTML: :border 2 :rules all :frame border
+#+AUTHOR: nil
 
 * MProto
 ** протокол
