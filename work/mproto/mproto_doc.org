@@ -1,0 +1,91 @@
+#+OPTIONS: ^:nil
+#+OPTIONS: \n:t
+#+ATTR_HTML: :border 2 :rules all :frame border
+
+* MProto
+** протокол
+   В начале клиент имеет только открытые ключ и ip сервера.
+   Генерится 2048-битный ключ "auth_key" методом [[http://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange][Диффи—Хеллмана]] ([[https://core.telegram.org/mtproto/auth_key][telegram реализация]]); [[https://github.com/ex3ndr/telegram-mt/blob/5c8e165c688d11e035bc4ec8881070a734f4e362/src/main/java/org/telegram/mtproto/pq/Authorizer.java#L67-L191][пример реализации]]
+   (telegram версия добавляет передачу nonce и расшифрование данных от сервера с помощью открытого ключа)
+   Auth_key обычно не меняется или меняется очень редко, в крипто-чатах меняется каждые N сообщений.
+
+   Далее начинается обмен сообщениями:
+*** Основные сущности
+    *Сообщение*:
+    #+ATTR_HTML: border="1" rules="all" frame="border"
+    |-------------+---------+----------------|
+    | auth_key_id | msg_key | encrypted_data |
+    | int64       | int128  | bytes          |
+    |-------------+---------+----------------|
+
+    *external header* -- auth_key_id + msg_key
+    *auth_key_id* -- lower-order 64 бит SHA1 auth_key
+    *msg_key* -- lower-order 128 бит SHA1 *незашифрованного сообщения*, исключая padding
+    *encrypted_data* -- зашифрованное *незашифрованное сообщение*.
+
+    *Незашифрованное сообщение*:
+    #+ATTR_HTML: border="1" rules="all" frame="border"
+    |-------+------------+------------+--------+---------------------+--------------+---------|
+    | salt  | session_id | message_id | seq_no | message_data_length | message_data | padding |
+    | int64 | int64      | int64      | int32  | int32               | bytes        |   0..15 |
+    |-------+------------+------------+--------+---------------------+--------------+---------|
+
+    где:
+
+    *internal header* = salt + session_id
+    *salt* -- случайное число назначемое сервером. Соль приявязана к сессии.
+    *session_id* -- индификатор сессии.
+    *message_id* = unixtime*2^32 -- номер сообщения в рамках сессии.
+    причём:
+    * message_id % 4 = 0 -- сообщение от клиента к серверу
+    * message_id % 4 = 1 -- сообщение от сервера к клиенту
+
+    *seq_no* - номер сообщения
+    Если сообщение является подтверждением:
+    seq_no' = 2*seq_no
+    если просто сообщением:
+    seq_no' = 2*seq_no + 1
+    (seq_no -- номер предыдущего сообщения)
+*** Метод шифрования
+    Пример реализации - [[https://github.com/ex3ndr/telegram-mt/blob/5c8e165c688d11e035bc4ec8881070a734f4e362/src/main/java/org/telegram/mtproto/transport/TransportPool.java#L226-L258][пример из оффициального клиента]]
+    Для шифрования сообщения используется AES-IGE.
+    AES-ключ и вектор вычисляется через msg_key (lower-order 128 бит SHA1 *незашифрованного сообщения*, исключая padding)
+    и auth_key.
+
+    sha1_a = SHA1 (msg_key + substr (auth_key, x, 32));
+    sha1_b = SHA1 (substr (auth_key, 32+x, 16) + msg_key + substr (auth_key, 48+x, 16));
+    sha1_с = SHA1 (substr (auth_key, 64+x, 32) + msg_key);
+    sha1_d = SHA1 (msg_key + substr (auth_key, 96+x, 32));
+    aes_key = substr (sha1_a, 0, 8) + substr (sha1_b, 8, 12) + substr (sha1_c, 4, 12);
+    aes_iv = substr (sha1_a, 8, 12) + substr (sha1_b, 0, 8) + substr (sha1_c, 16, 4) + substr (sha1_d, 0, 8);
+
+    x = 0
+
+
+    Таким образом нижнии 1024 бит auth_key не используються.
+
+    [[https://github.com/ex3ndr/telegram-mt/blob/5c8e165c688d11e035bc4ec8881070a734f4e362/src/main/java/org/telegram/mtproto/secure/aes/DefaultAESImplementation.java#L53-L81][AES256 IGE Encrypt]] - реализация
+
+*** Метод расшифрования
+    Пример реализации - [[https://github.com/ex3ndr/telegram-mt/blob/5c8e165c688d11e035bc4ec8881070a734f4e362/src/main/java/org/telegram/mtproto/transport/TransportPool.java#L141-L224][пример из оффициального клиента]]
+
+    sha1_a = SHA1 (msg_key + substr (auth_key, x, 32));
+    sha1_b = SHA1 (substr (auth_key, 32+x, 16) + msg_key + substr (auth_key, 48+x, 16));
+    sha1_с = SHA1 (substr (auth_key, 64+x, 32) + msg_key);
+    sha1_d = SHA1 (msg_key + substr (auth_key, 96+x, 32));
+    aes_key = substr (sha1_a, 0, 8) + substr (sha1_b, 8, 12) + substr (sha1_c, 4, 12);
+    aes_iv = substr (sha1_a, 8, 12) + substr (sha1_b, 0, 8) + substr (sha1_c, 16, 4) + substr (sha1_d, 0, 8);
+
+    x = 8
+
+    [[https://github.com/ex3ndr/telegram-mt/blob/5c8e165c688d11e035bc4ec8881070a734f4e362/src/main/java/org/telegram/mtproto/secure/aes/DefaultAESImplementation.java#L15-L50][AES256 IGE Decrypt]]
+
+    После расшифрования необходимо сделать пару проверок:
+    Посчитать msg_key от сообщения и сранить с переданным msg_key.
+    Проверить message_id на повтор и он должен быть больше переданных ранее (так как зависит от времени),
+    но допускаются границы -30, +300 секунд на принятие сообщения к текущему времени.
+** Links
+   [[https://core.telegram.org/mtproto/][Оффициальная дока]]
+   [[https://core.telegram.org/img/mtproto_encryption1.png][Графическая схема]]
+   [[https://github.com/ex3ndr/telegram-mt/tree/5c8e165c688d11e035bc4ec8881070a734f4e362][Отдельная реализация протокола (java) оффциального клмента]]
+   [[https://github.com/DrKLO/Telegram][Второй оффициальный клиент]]
