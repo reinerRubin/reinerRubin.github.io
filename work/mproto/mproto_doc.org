@@ -4,6 +4,7 @@
 #+AUTHOR: nil
 
 * MProto
+  *Данное описание не полное и местами не правильное.*
 ** протокол
    В начале клиент имеет только открытые ключ и ip сервера.
    Генерится 2048-битный ключ "auth_key" методом [[http://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange][Диффи—Хеллмана]] ([[https://core.telegram.org/mtproto/auth_key][telegram реализация]]); [[https://github.com/ex3ndr/telegram-mt/blob/5c8e165c688d11e035bc4ec8881070a734f4e362/src/main/java/org/telegram/mtproto/pq/Authorizer.java#L67-L191][пример реализации]]
