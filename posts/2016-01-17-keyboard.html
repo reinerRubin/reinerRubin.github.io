@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>My Hakyll Blog - Heng Yu Technology S60C Keyboard</title>
+        <link rel="stylesheet" type="text/css" href="../css/default.css" />
+    </head>
+    <body>
+        <div id="header">
+            <div id="logo">
+                <a href="../">My Hakyll Blog</a>
+            </div>
+            <div id="navigation">
+                <a href="../">Home</a>
+                <a href="../about.html">About</a>
+                <a href="../contact.html">Contact</a>
+                <a href="../archive.html">Archive</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <h1>Heng Yu Technology S60C Keyboard</h1>
+
+            <div class="info">
+    Posted on January 17, 2016
+    
+</div>
+
+<p>На работе нашлась <a href="http://www.hengyu-tech.com/e/product/e_10.html">Heng Yu Technology S60C Keyboard</a>. У этой клавиатуры есть usb выход. Успешно подключается и работает. Но по умолчанию она ничего не умеет.</p>
+<p>Поэтому захотелось перенастроить клавиши под себя и использовать ради фетиша (блокировка экрана, что-нибудь в GNU/Emacs, etc.). Для этого решил использовать <a href="https://en.wikipedia.org/wiki/X_keyboard_extension">XKB</a>.</p>
+<p>На текущий момент (Sun Jan 17 21:07:35 MSK 2016).</p>
+<p>Добавил layout в /usr/share/X11/xkb/symbols/s60c (пример):</p>
+<pre><code>default partial alphanumeric_keys
+xkb_symbols &quot;s60c&quot; {
+   key &lt;UP&gt;   { [        t, T ] };
+   key &lt;FK07&gt; { [        r, R ] };
+   key &lt;AD01&gt; { [        U2764 ] };
+   key &lt;AB05&gt; { [        XF86Save ] };
+};</code></pre>
+<p>&lt;AB05&gt; - это symbolic key. Его определяет так же xkb по keycode. Keycode иожно посмотреть с помощью xev. Соответствие keycode и symbols name определяется в файле /usr/share/X11/xkb/keycodes/evdev. Это можно увидеть ниже в вызове setxkbmap (keycodes: evdev+aliases(qwerty)). По-хорошему, наверное, надо завести отдельный маппинг.</p>
+<p>Добавил layout в /usr/share/X11/xkb/rules/evdev.xml</p>
+<div class="sourceCode"><pre class="sourceCode xml"><code class="sourceCode xml"><span class="kw">&lt;layout&gt;</span>
+  <span class="kw">&lt;configItem&gt;</span>
+    <span class="kw">&lt;name&gt;</span>s60c<span class="kw">&lt;/name&gt;</span>
+    <span class="kw">&lt;shortDescription&gt;</span>s60c<span class="kw">&lt;/shortDescription&gt;</span>
+    <span class="kw">&lt;description&gt;</span>s60c<span class="kw">&lt;/description&gt;</span>
+    <span class="kw">&lt;languageList&gt;&lt;iso639Id&gt;</span>eng<span class="kw">&lt;/iso639Id&gt;&lt;/languageList&gt;</span>
+  <span class="kw">&lt;/configItem&gt;</span>
+  <span class="kw">&lt;variantList&gt;</span>
+    <span class="kw">&lt;variant&gt;</span>
+      <span class="kw">&lt;configItem&gt;</span>
+        <span class="kw">&lt;name&gt;</span>s60c<span class="kw">&lt;/name&gt;</span>
+        <span class="kw">&lt;shortDescription&gt;</span>s60c<span class="kw">&lt;/shortDescription&gt;</span>
+        <span class="kw">&lt;description&gt;</span>s60c<span class="kw">&lt;/description&gt;</span>
+      <span class="kw">&lt;/configItem&gt;</span>
+    <span class="kw">&lt;/variant&gt;</span>
+  <span class="kw">&lt;/variantList&gt;</span>
+<span class="kw">&lt;/layout&gt;</span> </code></pre></div>
+<p>Привязал layout у устройству:</p>
+<div class="sourceCode"><pre class="sourceCode bash"><code class="sourceCode bash"><span class="kw">%</span> setxkbmap -v 10 -device 16 -layout s60c
+<span class="kw">Setting</span> verbose level to 10
+<span class="kw">locale</span> is C
+<span class="kw">Trying</span> to load rules file ./rules/evdev...
+<span class="kw">Trying</span> to load rules file /usr/share/X11/xkb/rules/evdev...
+<span class="kw">Success.</span>
+<span class="kw">Applied</span> rules from evdev:
+<span class="kw">rules</span>:      evdev
+<span class="kw">model</span>:      pc105
+<span class="kw">layout</span>:     s60c
+<span class="kw">options</span>:    grp:caps_toggle,grp_led:scroll
+<span class="kw">Trying</span> to build keymap using the following components:
+<span class="kw">keycodes</span>:   evdev+aliases(qwerty)
+<span class="kw">types</span>:      complete
+<span class="kw">compat</span>:     complete+ledscroll(group_lock)
+<span class="kw">symbols</span>:    pc+s60c+inet(evdev)<span class="kw">+capslock</span>(grouplock)
+<span class="kw">geometry</span>:   pc(pc105)</code></pre></div>
+<p>Значение параметра “-device id” можно взять из xinput:</p>
+<div class="sourceCode"><pre class="sourceCode bash"><code class="sourceCode bash">⎡ <span class="kw">Virtual</span> core pointer                    	id=2	[master pointer  (3)]
+  <span class="kw">...</span>
+⎣ <span class="kw">Virtual</span> core keyboard                   	id=3	[master keyboard (2)]
+    <span class="kw">...</span>
+    ↳ <span class="kw">Heng</span> Yu Technology S60C Keyboard        	id=16	[slave  keyboard (3)]
+    ↳ <span class="kw">Heng</span> Yu Technology S60C Keyboard        	id=17	[slave  keyboard (3)]</code></pre></div>
+<p>Что можно сделать:</p>
+<ul>
+<li>написать отдельный файл keycodes -&gt; symbolic name</li>
+<li>автоопределение клавиатуры с привязкой на неё всех правил</li>
+<li>написать ремап нажатия клавишь в последовательность нажатий через “evdev interface to access an input device”</li>
+</ul>
+<h4 id="фотографии">Фотографии</h4>
+<p><a href="http://i.imgur.com/uH2UUNW.jpg">Котик и клавиатура</a></p>
+
+        </div>
+        <div id="footer">
+            Site proudly generated by
+            <a href="http://jaspervdj.be/hakyll">Hakyll</a>
+        </div>
+    </body>
+</html>
